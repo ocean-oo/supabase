@@ -3319,6 +3319,10 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/platform/replication/{ref}/sinks': {
+    /** Gets replication sinks */
+    get: operations['ReplicationSinksController_getSinks']
+  }
   '/platform/replication/{ref}/sources': {
     /** Gets replication sources */
     get: operations['ReplicationSourcesController_getSources']
@@ -10788,6 +10792,11 @@ export interface components {
     RemoveReadReplicaBody: {
       database_identifier: string
     }
+    ReplicationBigQueryConfig: {
+      dataset_id: string
+      project_id: string
+      service_account_key: string
+    }
     ReplicationPostgresConfig: {
       host: string
       name: string
@@ -10798,6 +10807,13 @@ export interface components {
     ReplicationPublication: {
       name: string
       tables: components['schemas']['ReplicationTable'][]
+    }
+    ReplicationSinksResponse: {
+      config: {
+        BigQuery?: components['schemas']['ReplicationBigQueryConfig']
+      }
+      id: number
+      tenant_id: string
     }
     ReplicationSourcesResponse: {
       config: {
@@ -21601,6 +21617,26 @@ export interface operations {
         }
       }
       /** @description Failed to retrieve project's settings */
+      500: {
+        content: never
+      }
+    }
+  }
+  /** Gets replication sinks */
+  ReplicationSinksController_getSinks: {
+    parameters: {
+      path: {
+        /** @description Project ref */
+        ref: string
+      }
+    }
+    responses: {
+      200: {
+        content: {
+          'application/json': components['schemas']['ReplicationSinksResponse'][]
+        }
+      }
+      /** @description Failed to get replication sinks */
       500: {
         content: never
       }
