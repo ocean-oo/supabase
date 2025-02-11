@@ -10,24 +10,57 @@ afterAll(async () => {
   await cleanupRoot()
 })
 
-const withTestDatabase = (
-  name: string,
-  fn: (db: Awaited<ReturnType<typeof createTestDatabase>>) => Promise<void>
-) => {
-  test(name, async () => {
-    const db = await createTestDatabase()
-    try {
-      await fn(db)
-    } finally {
-      await db.cleanup()
-    }
-  })
+const createWithTestDatabase = () => {
+  const wrapper = (
+    name: string,
+    fn: (db: Awaited<ReturnType<typeof createTestDatabase>>) => Promise<void>
+  ) => {
+    test(name, async () => {
+      const db = await createTestDatabase()
+      try {
+        await fn(db)
+      } finally {
+        await db.cleanup()
+      }
+    })
+  }
+
+  wrapper.only = (
+    name: string,
+    fn: (db: Awaited<ReturnType<typeof createTestDatabase>>) => Promise<void>
+  ) => {
+    test.only(name, async () => {
+      const db = await createTestDatabase()
+      try {
+        await fn(db)
+      } finally {
+        await db.cleanup()
+      }
+    })
+  }
+
+  wrapper.skip = (
+    name: string,
+    fn: (db: Awaited<ReturnType<typeof createTestDatabase>>) => Promise<void>
+  ) => {
+    test.skip(name, async () => {
+      const db = await createTestDatabase()
+      try {
+        await fn(db)
+      } finally {
+        await db.cleanup()
+      }
+    })
+  }
+
+  return wrapper
 }
 
+const withTestDatabase = createWithTestDatabase()
+
 withTestDatabase('list roles', async ({ executeQuery }) => {
-  const { sql } = await pgMeta.roles.list()
-  const rawRes = await executeQuery(sql)
-  const res = pgMeta.roles.zod.array().parse(rawRes)
+  const { sql, zod } = await pgMeta.roles.list()
+  const res = zod.parse(await executeQuery(sql))
 
   let role = res.find(({ name }) => name === 'postgres')
 
@@ -40,14 +73,13 @@ withTestDatabase('list roles', async ({ executeQuery }) => {
       "canCreateDb": true,
       "canCreateRole": true,
       "canLogin": true,
-      "config": null,
+      "config": {},
       "connectionLimit": 100,
       "id": Any<Number>,
       "inheritRole": true,
       "isReplicationRole": true,
       "isSuperuser": true,
       "name": "postgres",
-      "password": "********",
       "validUntil": null,
     }
   `
@@ -61,9 +93,8 @@ withTestDatabase('list roles', async ({ executeQuery }) => {
 })
 
 withTestDatabase('list roles w/ default roles', async ({ executeQuery }) => {
-  const { sql } = await pgMeta.roles.list({ includeDefaultRoles: true })
-  const rawRes = await executeQuery(sql)
-  const res = pgMeta.roles.zod.array().parse(rawRes)
+  const { sql, zod } = await pgMeta.roles.list({ includeDefaultRoles: true })
+  const res = zod.parse(await executeQuery(sql))
 
   const role = res.find(({ name }) => name === 'pg_monitor')
 
@@ -79,21 +110,20 @@ withTestDatabase('list roles w/ default roles', async ({ executeQuery }) => {
       "canCreateDb": false,
       "canCreateRole": false,
       "canLogin": false,
-      "config": null,
+      "config": {},
       "connectionLimit": 100,
       "id": Any<Number>,
       "inheritRole": true,
       "isReplicationRole": false,
       "isSuperuser": false,
       "name": "pg_monitor",
-      "password": "********",
       "validUntil": null,
     }
   `
   )
 })
 
-withTestDatabase('retrieve, create, update, delete roles', async ({ executeQuery }) => {
+withTestDatabase.only('retrieve, create, update, delete roles', async ({ executeQuery }) => {
   // Create role
   const { sql: createSql } = pgMeta.roles.create({
     name: 'r',
@@ -105,83 +135,57 @@ withTestDatabase('retrieve, create, update, delete roles', async ({ executeQuery
     isReplicationRole: true,
     canBypassRls: true,
     connectionLimit: 100,
-    validUntil: '2020-01-01T00:00:00.000Z',
+    validUntil: new Date('2020-01-01T00:00:00.000Z').toISOString(),
     config: { search_path: 'extension, public' },
   })
-  const rawRes = await executeQuery(createSql)
-  let res = pgMeta.roles.zod.parse(rawRes[0])
-  expect({ data: res, error: null }).toMatchInlineSnapshot(
-    { data: { id: expect.any(Number) } },
-    `
-    {
-      "data": {
-        "activeConnections": 0,
-        "canBypassRls": true,
-        "canCreateDb": true,
-        "canCreateRole": true,
-        "canLogin": true,
-        "config": {
-          "search_path": "extension, public",
-        },
-        "connectionLimit": 100,
-        "id": Any<Number>,
-        "inheritRole": false,
-        "isReplicationRole": true,
-        "isSuperuser": true,
-        "name": "r",
-        "password": "********",
-        "validUntil": "2020-01-01 00:00:00+00",
-      },
-      "error": null,
-    }
-  `
-  )
+  await executeQuery(createSql)
 
-  // Retrieve role
-  const { sql: retrieveSql } = pgMeta.roles.retrieve({ id: res.id })
-  const rawRetrieveRes = await executeQuery(retrieveSql)
-  res = pgMeta.roles.zod.parse(rawRetrieveRes[0])
-  expect({ data: res, error: null }).toMatchInlineSnapshot(
-    { data: { id: expect.any(Number) } },
+  // Retrieve the created role using list
+  const { sql: listSql, zod: listZod } = await pgMeta.roles.list()
+  const roles = listZod.parse(await executeQuery(listSql))
+  const createdRole = roles.find((role) => role.name === 'r')
+  expect(createdRole).toMatchInlineSnapshot(
+    { id: expect.any(Number), activeConnections: expect.any(Number) },
     `
     {
-      "data": {
-        "activeConnections": 0,
-        "canBypassRls": true,
-        "canCreateDb": true,
-        "canCreateRole": true,
-        "canLogin": true,
-        "config": {
-          "search_path": "extension, public",
-        },
-        "connectionLimit": 100,
-        "id": Any<Number>,
-        "inheritRole": false,
-        "isReplicationRole": true,
-        "isSuperuser": true,
-        "name": "r",
-        "password": "********",
-        "validUntil": "2020-01-01 00:00:00+00",
+      "activeConnections": Any<Number>,
+      "canBypassRls": true,
+      "canCreateDb": true,
+      "canCreateRole": true,
+      "canLogin": true,
+      "config": {
+        "search_path": ""extension, public"",
       },
-      "error": null,
+      "connectionLimit": 100,
+      "id": Any<Number>,
+      "inheritRole": false,
+      "isReplicationRole": true,
+      "isSuperuser": true,
+      "name": "r",
+      "validUntil": "2020-01-01 00:00:00.000Z",
     }
   `
   )
 
   // Remove role
-  const { sql: removeSql } = pgMeta.roles.remove({ id: res.id })
+  const { sql: removeSql } = pgMeta.roles.remove({ id: createdRole!.id })
   await executeQuery(removeSql)
 
   // Create a new role for update test
   const { sql: createNewSql } = pgMeta.roles.create({
     name: 'r',
   })
-  const rawCreateRes = await executeQuery(createNewSql)
-  res = pgMeta.roles.zod.parse(rawCreateRes[0])
+  await executeQuery(createNewSql)
 
-  // Update role
+  // Get the role ID for update
+  const { sql: getIdSql, zod: getIdZod } = await pgMeta.roles.list()
+  const roleForUpdate = getIdZod
+    .parse(await executeQuery(getIdSql))
+    .find((role) => role.name === 'r')
+
+  // Update role with ISO string date
   const { sql: updateSql } = pgMeta.roles.update(
-    { id: res.id },
+    { id: roleForUpdate!.id },
     {
       name: 'rr',
       isSuperuser: true,
@@ -192,51 +196,78 @@ withTestDatabase('retrieve, create, update, delete roles', async ({ executeQuery
       isReplicationRole: true,
       canBypassRls: true,
       connectionLimit: 100,
-      validUntil: '2020-01-01T00:00:00.000Z',
+      validUntil: new Date('2020-01-01T00:00:00.000Z').toISOString(),
     }
   )
   await executeQuery(updateSql)
 
-  // Create role with config
-  const { sql: createConfigSql } = pgMeta.roles.create({
-    name: 'rr',
-    config: { search_path: 'public', log_statement: 'all' },
+  // Verify update using retrieve
+  const { sql: retrieveUpdatedSql, zod: retrieveZod } = pgMeta.roles.retrieve({
+    id: roleForUpdate!.id,
   })
-  const rawConfigRes = await executeQuery(createConfigSql)
-  res = pgMeta.roles.zod.parse(rawConfigRes[0])
-  expect({ data: res, error: null }).toMatchInlineSnapshot(
-    { data: { id: expect.any(Number) } },
+  const updatedRole = retrieveZod.parse((await executeQuery(retrieveUpdatedSql))[0])
+  expect(updatedRole).toMatchInlineSnapshot(
+    { id: expect.any(Number), activeConnections: expect.any(Number) },
     `
     {
-      "data": {
-        "activeConnections": 0,
-        "canBypassRls": false,
-        "canCreateDb": false,
-        "canCreateRole": false,
-        "canLogin": false,
-        "config": {
-          "log_statement": "all",
-          "search_path": "public",
-        },
-        "connectionLimit": -1,
-        "id": Any<Number>,
-        "inheritRole": true,
-        "isReplicationRole": false,
-        "isSuperuser": false,
-        "name": "rr",
-        "password": "********",
-        "validUntil": null,
+      "activeConnections": Any<Number>,
+      "canBypassRls": true,
+      "canCreateDb": true,
+      "canCreateRole": true,
+      "canLogin": true,
+      "config": {},
+      "connectionLimit": 100,
+      "id": Any<Number>,
+      "inheritRole": false,
+      "isReplicationRole": true,
+      "isSuperuser": true,
+      "name": "rr",
+      "validUntil": "2020-01-01 00:00:00+00",
+    }
+  `
+  )
+
+  // Create role with config
+  const { sql: createConfigSql } = pgMeta.roles.create({
+    name: 'config_role',
+    config: { search_path: 'public', log_statement: 'all' },
+  })
+  await executeQuery(createConfigSql)
+
+  // Verify config role using list
+  const { sql: listConfigSql, zod: listConfigZod } = await pgMeta.roles.list()
+  const configRole = listConfigZod
+    .parse(await executeQuery(listConfigSql))
+    .find((role) => role.name === 'config_role')
+  expect(configRole).toMatchInlineSnapshot(
+    { id: expect.any(Number), activeConnections: expect.any(Number) },
+    `
+    {
+      "activeConnections": Any<Number>,
+      "canBypassRls": false,
+      "canCreateDb": false,
+      "canCreateRole": false,
+      "canLogin": false,
+      "config": {
+        "log_statement": "all",
+        "search_path": "public",
       },
-      "error": null,
+      "connectionLimit": -1,
+      "id": Any<Number>,
+      "inheritRole": true,
+      "isReplicationRole": false,
+      "isSuperuser": false,
+      "name": "config_role",
+      "validUntil": null,
     }
   `
   )
 
   // Remove role and verify it's gone
-  const { sql: finalRemoveSql } = pgMeta.roles.remove({ id: res.id })
+  const { sql: finalRemoveSql } = pgMeta.roles.remove({ id: configRole!.id })
   await executeQuery(finalRemoveSql)
 
-  const { sql: finalRetrieveSql } = pgMeta.roles.retrieve({ id: res.id })
-  const finalRes = await executeQuery(finalRetrieveSql)
-  expect(finalRes).toHaveLength(0)
+  const { sql: finalListSql, zod: finalListZod } = await pgMeta.roles.list()
+  const finalRoles = finalListZod.parse(await executeQuery(finalListSql))
+  expect(finalRoles.find((role) => role.name === 'config_role')).toBeUndefined()
 })

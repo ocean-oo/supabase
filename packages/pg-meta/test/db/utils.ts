@@ -25,7 +25,9 @@ export async function createTestDatabase() {
       dbName,
       executeQuery: async <T = any>(query: string): Promise<T> => {
         try {
+          console.log('query exec: ', query)
           const execResult = await testDb.unsafe(query)
+          console.log('Executed result: ', execResult)
           const result = execResult.map((v) => v)
           return result as T
         } catch (error) {

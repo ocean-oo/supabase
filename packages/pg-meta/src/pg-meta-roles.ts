@@ -12,9 +12,9 @@ const pgRoleZod = z.object({
   canLogin: z.boolean(),
   isReplicationRole: z.boolean(),
   canBypassRls: z.boolean(),
-  activeConnections: z.number(),
-  connectionLimit: z.number(),
-  validUntil: z.union([z.string(), z.null()]),
+  activeConnections: z.coerce.number(),
+  connectionLimit: z.coerce.number(),
+  validUntil: z.union([z.date(), z.null()]),
   config: z.record(z.string(), z.string()),
 })
 const pgRoleArrayZod = z.array(pgRoleZod)
