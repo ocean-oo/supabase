@@ -305,7 +305,9 @@ withTestDatabase('retrieve set-returning function', async ({ executeQuery }) => 
 })
 
 withTestDatabase('create function with various config_params values', async ({ executeQuery }) => {
-  // Test empty string value
+  // Set initial application_name for consistent testing
+  await executeQuery("SET application_name = 'current-app-name'")
+
   const { sql: createSql1 } = await pgMeta.functions.create({
     name: 'test_func_config_1',
     schema: 'public',
@@ -331,7 +333,7 @@ withTestDatabase('create function with various config_params values', async ({ e
   expect(result1).toBeDefined()
   expect(result1!.config_params).toEqual({
     search_path: '""',
-    application_name: 'postgres.js',
+    application_name: 'current-app-name',
     work_mem: '8MB',
   })
 
