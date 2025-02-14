@@ -123,10 +123,10 @@ withTestDatabase('list roles w/ default roles', async ({ executeQuery }) => {
   )
 })
 
-withTestDatabase.only('retrieve, create, update, delete roles', async ({ executeQuery }) => {
+withTestDatabase('retrieve, create, update, delete roles', async ({ executeQuery }) => {
   // Create role
   const { sql: createSql } = pgMeta.roles.create({
-    name: 'r',
+    name: 'r1',
     isSuperuser: true,
     canCreateDb: true,
     canCreateRole: true,
@@ -135,7 +135,7 @@ withTestDatabase.only('retrieve, create, update, delete roles', async ({ execute
     isReplicationRole: true,
     canBypassRls: true,
     connectionLimit: 100,
-    validUntil: new Date('2020-01-01T00:00:00.000Z').toISOString(),
+    validUntil: '2020-01-01T00:00:00.000Z',
     config: { search_path: 'extension, public' },
   })
   await executeQuery(createSql)
@@ -143,7 +143,7 @@ withTestDatabase.only('retrieve, create, update, delete roles', async ({ execute
   // Retrieve the created role using list
   const { sql: listSql, zod: listZod } = await pgMeta.roles.list()
   const roles = listZod.parse(await executeQuery(listSql))
-  const createdRole = roles.find((role) => role.name === 'r')
+  const createdRole = roles.find((role) => role.name === 'r1')
   expect(createdRole).toMatchInlineSnapshot(
     { id: expect.any(Number), activeConnections: expect.any(Number) },
     `
@@ -161,8 +161,8 @@ withTestDatabase.only('retrieve, create, update, delete roles', async ({ execute
       "inheritRole": false,
       "isReplicationRole": true,
       "isSuperuser": true,
-      "name": "r",
-      "validUntil": "2020-01-01 00:00:00.000Z",
+      "name": "r1",
+      "validUntil": "2020-01-01 00:00:00+00",
     }
   `
   )
@@ -173,7 +173,7 @@ withTestDatabase.only('retrieve, create, update, delete roles', async ({ execute
 
   // Create a new role for update test
   const { sql: createNewSql } = pgMeta.roles.create({
-    name: 'r',
+    name: 'r1',
   })
   await executeQuery(createNewSql)
 
@@ -181,7 +181,7 @@ withTestDatabase.only('retrieve, create, update, delete roles', async ({ execute
   const { sql: getIdSql, zod: getIdZod } = await pgMeta.roles.list()
   const roleForUpdate = getIdZod
     .parse(await executeQuery(getIdSql))
-    .find((role) => role.name === 'r')
+    .find((role) => role.name === 'r1')
 
   // Update role with ISO string date
   const { sql: updateSql } = pgMeta.roles.update(
@@ -196,9 +196,10 @@ withTestDatabase.only('retrieve, create, update, delete roles', async ({ execute
       isReplicationRole: true,
       canBypassRls: true,
       connectionLimit: 100,
-      validUntil: new Date('2020-01-01T00:00:00.000Z').toISOString(),
+      validUntil: '2020-01-01T00:00:00.000Z',
     }
   )
+  console.log(updateSql)
   await executeQuery(updateSql)
 
   // Verify update using retrieve
@@ -252,7 +253,7 @@ withTestDatabase.only('retrieve, create, update, delete roles', async ({ execute
         "log_statement": "all",
         "search_path": "public",
       },
-      "connectionLimit": -1,
+      "connectionLimit": 100,
       "id": Any<Number>,
       "inheritRole": true,
       "isReplicationRole": false,

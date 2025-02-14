@@ -14,7 +14,7 @@ const pgRoleZod = z.object({
   canBypassRls: z.boolean(),
   activeConnections: z.coerce.number(),
   connectionLimit: z.coerce.number(),
-  validUntil: z.union([z.date(), z.null()]),
+  validUntil: z.union([z.string(), z.null()]),
   config: z.record(z.string(), z.string()),
 })
 const pgRoleArrayZod = z.array(pgRoleZod)
@@ -199,18 +199,18 @@ begin
     ${canLogin === undefined ? '' : canLogin ? 'login' : 'nologin'}
     ${isReplicationRole === undefined ? '' : isReplicationRole ? 'replication' : 'noreplication'}
     ${canBypassRls === undefined ? '' : canBypassRls ? 'bypassrls' : 'nobypassrls'}
-    ${connectionLimit === undefined ? '' : `connection limit ${literal(connectionLimit)}`}
+    ${connectionLimit === undefined ? '' : `connection limit ${connectionLimit}`}
     ${password === undefined ? '' : `password ${literal(password)}`}
-    ${validUntil === undefined ? '' : `valid until ${literal(validUntil)}`}
-  ', old.rolname));
+    ${validUntil === undefined ? '' : `valid until %L`}
+  ', old.rolname${validUntil === undefined ? '' : `, ${literal(validUntil)}`}));
 
   ${
     newName === undefined
       ? ''
       : `
   -- Using the same name in the rename clause gives an error, so only do it if the new name is different.
-  if new_name != old.nspname then
-    execute(format('alter role %I rename to ${ident(newName)};', old.nspname));
+  if ${literal(newName)} != old.rolname then
+    execute(format('alter role %I rename to %I;', old.rolname, ${literal(newName)}));
   end if;
   `
   }
