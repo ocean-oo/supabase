@@ -12,8 +12,8 @@ const pgRoleZod = z.object({
   canLogin: z.boolean(),
   isReplicationRole: z.boolean(),
   canBypassRls: z.boolean(),
-  activeConnections: z.coerce.number(),
-  connectionLimit: z.coerce.number(),
+  activeConnections: z.number(),
+  connectionLimit: z.number(),
   validUntil: z.union([z.string(), z.null()]),
   config: z.record(z.string(), z.string()),
 })
